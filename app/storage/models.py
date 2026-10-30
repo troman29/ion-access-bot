@@ -33,7 +33,7 @@ class ChatData:
 
 
 class TokenType(StrEnum):
-    NFT = "nft_collection"
+    NATIVE = "native"
     JETTON = "jetton_master"
 
 

@@ -136,7 +136,6 @@ dmypy.json
 # Local notes and tests
 .docs/
 CLAUDE.md
-tests/
 
 # Bot data
 data/

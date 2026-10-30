@@ -5,7 +5,6 @@ from aiogram.types import InlineKeyboardButton as Button
 from aiogram.types import InlineKeyboardMarkup as Markup
 from aiogram.utils.keyboard import InlineKeyboardBuilder as Builder
 
-from app.bot.utils import buy_url
 from app.storage import ChatData, TokenData
 from app.texts import SUPPORTED_LANGUAGES, TextButton
 
@@ -80,10 +79,8 @@ def allow_access(text_button: TextButton, chats: Sequence[ChatData]) -> Markup:
     return Markup(inline_keyboard=inline_keyboard)
 
 
-def deny_access(text_button: TextButton, tokens: Sequence[TokenData], dex_name: str) -> Markup:
-    inline_keyboard = [[Button(text=token.name, url=buy_url(token, dex_name))] for token in tokens]
-    inline_keyboard.append([Button(text=text_button.get("back"), callback_data="main")])
-    return Markup(inline_keyboard=inline_keyboard)
+def deny_access(text_button: TextButton) -> Markup:
+    return main(text_button)
 
 
 def select_tokens(tokens: Sequence[TokenData]) -> Markup:

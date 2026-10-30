@@ -1,5 +1,10 @@
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 from aiogram.types import User
 from aiogram_tonconnect import Texts, View
+from aiogram_tonconnect.core.models import Operation
+from aiogram_tonconnect.view.view import Screen
+from ton_connect.models import AppWallet
 
 from app.storage import Storage
 from app.texts import SUPPORTED_LANGUAGES, TextButton, TextMessage
@@ -35,3 +40,30 @@ class WalletView(View):
         if user_data is not None and user_data.language_code:
             return user_data.language_code
         return await super().language(user)
+
+    async def connect(
+        self,
+        operation: Operation,
+        wallets: list[AppWallet],
+        selected: AppWallet | None,
+        qr_link: str,
+        open_link: str | None,
+        page: int,
+    ) -> Screen:
+        if selected is None:
+            selected = wallets[0]
+            qr_link = ion_wallet_link(qr_link, selected.universal_url, "none")
+            open_link = ion_wallet_link(qr_link, selected.universal_url, "back")
+        return await super().connect(operation, wallets, selected, qr_link, open_link, page)
+
+
+def ion_wallet_link(link: str, universal_url: str | None, return_strategy: str) -> str:
+    if universal_url is None:
+        raise ValueError("ION Wallet has no universal URL")
+    source = urlsplit(link)
+    target = urlsplit(universal_url)
+    if source.scheme not in {"tc", "https"} or target.scheme != "https":
+        raise ValueError("Invalid ION Gateway connect URL")
+    params = dict(parse_qsl(source.query, keep_blank_values=True))
+    params["ret"] = return_strategy
+    return urlunsplit((target.scheme, target.netloc, target.path, urlencode(params), ""))

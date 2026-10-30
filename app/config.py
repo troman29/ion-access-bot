@@ -4,13 +4,6 @@ from environs import Env, validate
 
 from app.texts import SUPPORTED_LANGUAGES
 
-DEX_URLS = {
-    "dedust": "https://dedust.io/swap/GRAM/",
-    "stonfi": "https://app.ston.fi/swap?chartVisible=false&ft=GRAM&tt=",
-    "swapcoffee": "https://swap.coffee/dex?ft=GRAM&st=",
-}
-
-
 @dataclass
 class BotConfig:
     TOKEN: str
@@ -29,8 +22,10 @@ class RedisConfig:
 
 @dataclass
 class IndexerConfig:
+    URL: str
+    STAKING_API_URL: str
+    LION_JETTON: str
     KEY: str | None
-    RPS: int | None
 
 
 @dataclass
@@ -39,9 +34,8 @@ class Config:
     redis: RedisConfig
     indexer: IndexerConfig
 
-    DEX_NAME: str
-    IS_TESTNET: bool
     MANIFEST_URL: str
+    WALLETS_LIST_URL: str
     WALLETS: list[str]
     CHECK_INTERVAL: int
 
@@ -64,12 +58,13 @@ def load_config() -> Config:
             PASSWORD=env.str("REDIS_PASSWORD", None) or None,
         ),
         indexer=IndexerConfig(
-            KEY=env.str("TONCENTER_KEY", None) or None,
-            RPS=env.int("TONCENTER_RPS", None, validate=validate.Range(min=1)),
+            URL=env.str("ION_INDEXER_URL", "https://api.mainnet.ice.io"),
+            STAKING_API_URL=env.str("ION_STAKING_API_URL", "https://api.ionwallet.io"),
+            LION_JETTON=env.str("LION_JETTON", "EQACbwI38RnvclU5Wv6H9zDr8Ao_tq9NWilXxBmoE8yroZlF"),
+            KEY=env.str("ION_INDEXER_KEY", None) or None,
         ),
-        DEX_NAME=env.str("DEX_NAME", "", validate=validate.OneOf(["", *DEX_URLS])) or "swapcoffee",
-        IS_TESTNET=env.bool("IS_TESTNET"),
         MANIFEST_URL=env.str("MANIFEST_URL"),
-        WALLETS=[name.strip() for name in env.list("WALLETS", [], subcast=str)],
+        WALLETS_LIST_URL=env.str("WALLETS_LIST_URL", "https://raw.githubusercontent.com/ice-blockchain/wallets-list/refs/heads/master/wallets-v2.json"),
+        WALLETS=[name.strip() for name in env.list("WALLETS", ["ionwallet"], subcast=str)],
         CHECK_INTERVAL=env.int("CHECK_INTERVAL", 5, validate=validate.Range(min=1)),
     )
