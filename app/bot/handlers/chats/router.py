@@ -4,7 +4,12 @@ from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums import ChatMemberStatus, ChatType
 from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.filters import Command
-from aiogram.filters.chat_member_updated import LEAVE_TRANSITION, PROMOTED_TRANSITION, ChatMemberUpdatedFilter
+from aiogram.filters.chat_member_updated import (
+    JOIN_TRANSITION,
+    LEAVE_TRANSITION,
+    PROMOTED_TRANSITION,
+    ChatMemberUpdatedFilter,
+)
 from aiogram.types import CallbackQuery, ChatJoinRequest, ChatMemberUpdated, LinkPreviewOptions, Message
 from aiogram.utils.markdown import hbold
 
@@ -15,6 +20,7 @@ from app.bot.manager import Manager, SendMode
 from app.bot.utils import admin_texts, is_admin, missing_rights, notify_admin, rights_text
 from app.config import Config
 from app.gate import Access, check_access
+from app.gate.members import kick
 from app.indexer import Indexer
 from app.storage import Storage
 
@@ -125,6 +131,22 @@ async def chat_join_request(event: ChatJoinRequest, manager: Manager, indexer: I
         await show_access(manager, access, send_mode=SendMode.SEND)
     finally:
         await event.decline()
+
+
+@router.chat_member(ChatMemberUpdatedFilter(JOIN_TRANSITION))
+async def member_joined(event: ChatMemberUpdated, bot: Bot, storage: Storage, indexer: Indexer) -> None:
+    if await storage.get_chat(event.chat.id) is None:
+        return
+    user_id = event.new_chat_member.user.id
+    if user_id == bot.id or event.new_chat_member.status in {ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR}:
+        return
+    if user_id in await storage.members(event.chat.id):
+        return
+    user = await storage.get_user(user_id)
+    access = await check_access(indexer, storage, user, await storage.tokens()) if user else Access.DENIED
+    await storage.add_member(event.chat.id, user_id)
+    if access != Access.GRANTED:
+        await kick(bot, storage, event.chat.id, user_id)
 
 
 @router.chat_member(ChatMemberUpdatedFilter(LEAVE_TRANSITION))
