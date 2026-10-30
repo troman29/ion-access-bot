@@ -4,6 +4,7 @@ from environs import Env, validate
 
 from app.texts import SUPPORTED_LANGUAGES
 
+
 @dataclass
 class BotConfig:
     TOKEN: str
@@ -64,7 +65,10 @@ def load_config() -> Config:
             KEY=env.str("ION_INDEXER_KEY", None) or None,
         ),
         MANIFEST_URL=env.str("MANIFEST_URL"),
-        WALLETS_LIST_URL=env.str("WALLETS_LIST_URL", "https://raw.githubusercontent.com/ice-blockchain/wallets-list/refs/heads/master/wallets-v2.json"),
+        WALLETS_LIST_URL=env.str(
+            "WALLETS_LIST_URL",
+            "https://raw.githubusercontent.com/ice-blockchain/wallets-list/refs/heads/master/wallets-v2.json",
+        ),
         WALLETS=[name.strip() for name in env.list("WALLETS", ["ionwallet"], subcast=str)],
         CHECK_INTERVAL=env.int("CHECK_INTERVAL", 5, validate=validate.Range(min=1)),
     )

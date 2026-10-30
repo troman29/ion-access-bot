@@ -15,12 +15,15 @@ class WalletLinkTests(unittest.TestCase):
         parts = urlsplit(link)
         self.assertEqual(parts.scheme, "https")
         self.assertEqual(parts.netloc, "connect.ionwallet.io")
-        self.assertEqual(parse_qs(parts.query), {
-            "v": ["2"],
-            "id": ["client-id"],
-            "r": ["request-data"],
-            "ret": ["none"],
-        })
+        self.assertEqual(
+            parse_qs(parts.query),
+            {
+                "v": ["2"],
+                "id": ["client-id"],
+                "r": ["request-data"],
+                "ret": ["none"],
+            },
+        )
 
 
 if __name__ == "__main__":

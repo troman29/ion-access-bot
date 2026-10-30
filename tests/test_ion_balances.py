@@ -52,10 +52,12 @@ class IonBalanceTests(unittest.IsolatedAsyncioTestCase):
     async def test_duplicate_wallet_on_next_page_is_not_counted_twice(self) -> None:
         wallet = {"address": OWNER, "owner": OWNER, "jetton": LION, "balance": "100"}
         second_wallet = {"address": LION, "owner": OWNER, "jetton": LION, "balance": "200"}
-        self.indexer._indexer = AsyncMock(side_effect=[
-            {"jetton_wallets": [wallet, second_wallet]},
-            {"jetton_wallets": [wallet]},
-        ])
+        self.indexer._indexer = AsyncMock(
+            side_effect=[
+                {"jetton_wallets": [wallet, second_wallet]},
+                {"jetton_wallets": [wallet]},
+            ]
+        )
 
         with patch("app.indexer.indexer.PAGE", 2):
             balances = await self.indexer._jetton_balances([raw_address(LION)], [self.owner])

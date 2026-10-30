@@ -31,8 +31,7 @@ async def main_menu(manager: Manager, send_mode: SendMode = SendMode.EDIT) -> No
         wallet=explorer_link(manager.user.wallet_address),
         chats="\n".join(f"• {hcode(chat.name)}" for chat in chats),
         tokens="\n".join(
-            f"• {html.quote(token.name)} - {hcode(token_amount(token, token.min_amount))}"
-            for token in tokens
+            f"• {html.quote(token.name)} - {hcode(token_amount(token, token.min_amount))}" for token in tokens
         ),
     )
     await manager.send_message(text, reply_markup=keyboards.main_menu(manager.text_button), send_mode=send_mode)

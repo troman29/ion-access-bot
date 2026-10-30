@@ -1,4 +1,3 @@
-import asyncio
 from collections import Counter
 from collections.abc import Sequence
 from decimal import Decimal, InvalidOperation
@@ -15,7 +14,7 @@ from .models import DEFAULT_DECIMALS, IndexerError, TokenMeta, raw_address
 PAGE = 1000
 OWNERS_PER_REQUEST = 100
 TIMEOUT = aiohttp.ClientTimeout(total=15)
-NATIVE_TOKEN_ADDRESS = "ION"
+ION_ASSET_ADDRESS = "ION"
 NATIVE_DECIMALS = 9
 
 
@@ -51,7 +50,7 @@ class Indexer:
             async with self.session.request(method, url, headers=headers, **kwargs) as response:
                 response.raise_for_status()
                 data = await response.json()
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as error:
+        except (aiohttp.ClientError, TimeoutError, ValueError) as error:
             raise IndexerError(f"ION API request failed: {url}") from error
         if not isinstance(data, dict):
             raise IndexerError(f"ION API returned an invalid response: {url}")
@@ -87,13 +86,16 @@ class Indexer:
         seen: set[str] = set()
         offset = 0
         while True:
-            data = await self._indexer("/jetton/wallets", {
-                "owner_address": owners,
-                "jetton_address": masters,
-                "exclude_zero_balance": "true",
-                "limit": PAGE,
-                "offset": offset,
-            })
+            data = await self._indexer(
+                "/jetton/wallets",
+                {
+                    "owner_address": owners,
+                    "jetton_address": masters,
+                    "exclude_zero_balance": "true",
+                    "limit": PAGE,
+                    "offset": offset,
+                },
+            )
             wallets = data.get("jetton_wallets")
             if not isinstance(wallets, list):
                 raise IndexerError("ION indexer returned no jetton wallet list")
@@ -133,7 +135,9 @@ class Indexer:
         unique_owners = list(dict.fromkeys(raw_address(owner) for owner in owners))
         native = next((token for token in tokens if token.type == TokenType.NATIVE), None)
         jettons = [token for token in tokens if token.type == TokenType.JETTON]
-        masters = list(dict.fromkeys([*(raw_address(token.address) for token in jettons), *([self.lion_jetton] if native else [])]))
+        masters = list(
+            dict.fromkeys([*(raw_address(token.address) for token in jettons), *([self.lion_jetton] if native else [])])
+        )
         all_jetton_balances: Counter[tuple[str, str]] = Counter()
 
         for batch in batched(unique_owners, OWNERS_PER_REQUEST):
@@ -164,23 +168,30 @@ class Indexer:
     async def has_holders(self, token: TokenData) -> bool:
         if token.type == TokenType.NATIVE:
             return True
-        data = await self._indexer("/jetton/wallets", {
-            "jetton_address": token.address,
-            "exclude_zero_balance": "true",
-            "limit": 1,
-        })
+        data = await self._indexer(
+            "/jetton/wallets",
+            {
+                "jetton_address": token.address,
+                "exclude_zero_balance": "true",
+                "limit": 1,
+            },
+        )
         wallets = data.get("jetton_wallets")
         if not isinstance(wallets, list):
             raise IndexerError("ION indexer returned no jetton wallet list")
         return bool(wallets)
 
     async def public_key(self, address: Address) -> PublicKey | None:
-        data = await self._request("POST", f"{self.url}/http/v2/jsonRPC", json={
-            "id": 1,
-            "jsonrpc": "2.0",
-            "method": "runGetMethod",
-            "params": {"address": address.to_str(is_user_friendly=False), "method": "get_public_key", "stack": []},
-        })
+        data = await self._request(
+            "POST",
+            f"{self.url}/http/v2/jsonRPC",
+            json={
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "runGetMethod",
+                "params": {"address": address.to_str(is_user_friendly=False), "method": "get_public_key", "stack": []},
+            },
+        )
         result = data.get("result") or {}
         if result.get("exit_code") != 0 or not result.get("stack"):
             return None
