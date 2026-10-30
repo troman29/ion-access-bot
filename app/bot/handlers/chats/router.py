@@ -90,6 +90,12 @@ async def bot_promoted(event: ChatMemberUpdated, manager: Manager) -> None:
     await chat_confirm_add(manager, send_mode=SendMode.SEND)
 
 
+@router.message(Command("register"), is_admin)
+async def register_chat(message: Message, manager: Manager) -> None:
+    await manager.state.update_data(chat={"id": message.chat.id, "name": message.chat.title, "type": message.chat.type})
+    await chat_confirm_add(manager, send_mode=SendMode.SEND)
+
+
 @router.chat_join_request()
 async def chat_join_request(event: ChatJoinRequest, manager: Manager, indexer: Indexer) -> None:
     if await manager.storage.get_chat(event.chat.id) is None:
