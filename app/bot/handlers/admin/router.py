@@ -13,8 +13,9 @@ from app.bot.keyboards import AdminCallback, ChatCallback, PageCallback, TokenCa
 from app.bot.manager import Manager, SendMode, safe_delete
 from app.bot.states import AdminState
 from app.bot.utils import is_admin, missing_rights, parse_min_amount, rights_list
-from app.indexer import Indexer, IndexerError
-from app.storage import AdminData, ChatData, TokenData, now
+from app.indexer import Indexer, IndexerError, TokenMeta
+from app.indexer.indexer import ION_ASSET_ADDRESS
+from app.storage import AdminData, ChatData, TokenData, TokenType, now
 
 from . import windows
 
@@ -307,17 +308,20 @@ async def token_send_address_message(message: Message, text: str, manager: Manag
     await safe_delete(message)
     await manager.send_loader_message()
     texts = manager.text_message
-    try:
-        address = Address(text.strip()).to_str(is_bounceable=True)
-    except AddressError:
-        await windows.token_send_address(manager, texts.get("token_send_address_error"))
-        return
-    try:
-        meta = await indexer.resolve_token(address)
-    except IndexerError as ex:
-        logger.warning("Token %s is not resolved: %s", address, ex)
-        await windows.token_send_address(manager, texts.get("token_send_address_error_unavailable"))
-        return
+    if text.strip().upper() == ION_ASSET_ADDRESS:
+        meta = TokenMeta(TokenType.NATIVE, "ION including staked LION", ION_ASSET_ADDRESS, 9)
+    else:
+        try:
+            address = Address(text.strip()).to_str(is_bounceable=True)
+        except AddressError:
+            await windows.token_send_address(manager, texts.get("token_send_address_error"))
+            return
+        try:
+            meta = await indexer.resolve_token(address)
+        except IndexerError as ex:
+            logger.warning("Token %s is not resolved: %s", address, ex)
+            await windows.token_send_address(manager, texts.get("token_send_address_error_unavailable"))
+            return
 
     if meta is None:
         await windows.token_send_address(manager, texts.get("token_send_address_error_not_supported"))

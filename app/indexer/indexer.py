@@ -1,144 +1,199 @@
-import asyncio
 from collections import Counter
-from collections.abc import Awaitable, Callable, Sequence
-from contextlib import suppress
-from functools import partial
+from collections.abc import Sequence
+from decimal import Decimal, InvalidOperation
 from itertools import batched
+from typing import Any
 
+import aiohttp
 from ton_core import Address, PublicKey
-from toncenter.exceptions import ToncenterError
-from toncenter.rest import ToncenterRestClient
-from toncenter.rest.v3.models import JettonWallet, NFTItem, V2RunGetMethodRequest
-from toncenter.types import Network
 
 from app.storage import TokenData, TokenType
 
-from .models import IndexerError, TokenMeta, raw_address
-from .parsers import UNKNOWN_COLLECTION, count_items, jetton_balances, jetton_meta, token_info
+from .models import DEFAULT_DECIMALS, IndexerError, TokenMeta, raw_address
 
 PAGE = 1000
-OWNERS_PER_REQUEST = 250
-TIMEOUT = 10
-TIMEOUT_RETRIES = 2
+OWNERS_PER_REQUEST = 100
+TIMEOUT = aiohttp.ClientTimeout(total=15)
+ION_ASSET_ADDRESS = "ION"
+NATIVE_DECIMALS = 9
+
+
+def ion_equivalent(native_balance: int, lion_balance: int, lion_decimals: int, rate: Decimal) -> int:
+    if not rate.is_finite() or rate <= 0:
+        raise IndexerError("Invalid LION staking rate")
+    numerator, denominator = rate.as_integer_ratio()
+    staked = lion_balance * numerator * 10**NATIVE_DECIMALS // (denominator * 10**lion_decimals)
+    return native_balance + staked
 
 
 class Indexer:
-    def __init__(self, key: str | None, rps: int | None, is_testnet: bool) -> None:
-        network = Network.TESTNET if is_testnet else Network.MAINNET
-        self.client = ToncenterRestClient(api_key=key or "", network=network, rps_limit=rps, timeout=TIMEOUT)
+    def __init__(self, url: str, staking_api_url: str, lion_jetton: str, key: str | None = None) -> None:
+        self.url = url.rstrip("/")
+        self.staking_api_url = staking_api_url.rstrip("/")
+        self.lion_jetton = raw_address(lion_jetton)
+        self.key = key
+        self.session: aiohttp.ClientSession | None = None
 
     async def start(self) -> None:
-        await self.client.create_session()
+        self.session = aiohttp.ClientSession(timeout=TIMEOUT)
 
     async def close(self) -> None:
-        await self.client.close_session()
+        if self.session is not None:
+            await self.session.close()
+            self.session = None
 
-    # The client retries 429, 5xx and dropped connections itself; a request that runs out of time leaks out raw
-    async def _call[T](self, request: Callable[[], Awaitable[T]]) -> T:
+    async def _request(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:
+        if self.session is None:
+            raise IndexerError("Indexer session is not started")
+        headers = {"X-Api-Key": self.key} if self.key and url.startswith(self.url) else {}
         try:
-            for attempt in range(TIMEOUT_RETRIES):
-                with suppress(TimeoutError):
-                    return await request()
-                await asyncio.sleep(attempt + 1)
-            return await request()
-        except TimeoutError as ex:
-            raise IndexerError(f"Toncenter did not answer in {TIMEOUT} s") from ex
-        except ToncenterError as ex:
-            raise IndexerError(str(ex)) from ex
+            async with self.session.request(method, url, headers=headers, **kwargs) as response:
+                response.raise_for_status()
+                data = await response.json()
+        except (aiohttp.ClientError, TimeoutError, ValueError) as error:
+            raise IndexerError(f"ION API request failed: {url}") from error
+        if not isinstance(data, dict):
+            raise IndexerError(f"ION API returned an invalid response: {url}")
+        return data
+
+    async def _indexer(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("GET", f"{self.url}/indexer/v3{path}", params=params)
 
     async def resolve_token(self, address: str) -> TokenMeta | None:
-        masters = await self._call(partial(self.client.v3.jettons.get_jetton_masters, address=[address]))
-        if masters.jetton_masters:
-            return jetton_meta(masters, address)
-        collections = await self._call(partial(self.client.v3.nfts.get_nft_collections, collection_address=[address]))
-        if collections.nft_collections:
-            name = token_info(collections.metadata, address).name or UNKNOWN_COLLECTION
-            return TokenMeta(TokenType.NFT, name, address, None)
-        return None
+        raw = raw_address(address)
+        data = await self._indexer("/jetton/masters", {"address": address})
+        masters = data.get("jetton_masters")
+        if not isinstance(masters, list):
+            raise IndexerError("ION indexer returned no jetton master list")
+        master = next((item for item in masters if raw_address(item["address"]) == raw), None)
+        if master is None:
+            return None
+        metadata = data.get("metadata", {}).get(master["address"], {})
+        info = (metadata.get("token_info") or [{}])[0]
+        content = master.get("jetton_content") or {}
+        decimals = info.get("extra", {}).get("decimals", content.get("decimals", DEFAULT_DECIMALS))
+        try:
+            decimals = int(decimals)
+        except (TypeError, ValueError) as error:
+            raise IndexerError("Invalid jetton decimals") from error
+        if not 0 <= decimals <= 255:
+            raise IndexerError("Invalid jetton decimals")
+        name = info.get("name") or content.get("name") or info.get("symbol") or "Unknown jetton"
+        return TokenMeta(TokenType.JETTON, name, address, decimals)
+
+    async def _jetton_balances(self, masters: list[str], owners: list[str]) -> Counter[tuple[str, str]]:
+        found: Counter[tuple[str, str]] = Counter()
+        seen: set[str] = set()
+        offset = 0
+        while True:
+            data = await self._indexer(
+                "/jetton/wallets",
+                {
+                    "owner_address": owners,
+                    "jetton_address": masters,
+                    "exclude_zero_balance": "true",
+                    "limit": PAGE,
+                    "offset": offset,
+                },
+            )
+            wallets = data.get("jetton_wallets")
+            if not isinstance(wallets, list):
+                raise IndexerError("ION indexer returned no jetton wallet list")
+            for wallet in wallets:
+                if wallet.get("jetton") and wallet.get("owner"):
+                    wallet_address = raw_address(wallet["address"])
+                    if wallet_address in seen:
+                        continue
+                    seen.add(wallet_address)
+                    found[(raw_address(wallet["jetton"]), raw_address(wallet["owner"]))] += int(wallet["balance"])
+            if len(wallets) < PAGE:
+                return found
+            offset += len(wallets)
+
+    async def _native_balances(self, owners: list[str]) -> dict[str, int]:
+        data = await self._indexer("/accountStates", {"address": owners})
+        accounts = data.get("accounts")
+        if not isinstance(accounts, list):
+            raise IndexerError("ION indexer returned no account state list")
+        balances = {raw_address(item["address"]): int(item["balance"]) for item in accounts}
+        if set(owners) - balances.keys():
+            raise IndexerError("ION indexer omitted requested account states")
+        return balances
+
+    async def _lion_rate(self) -> Decimal:
+        data = await self._request("GET", f"{self.staking_api_url}/staking/common")
+        try:
+            rate = Decimal(str(data["liquid"]["currentRate"]))
+        except (KeyError, TypeError, InvalidOperation) as error:
+            raise IndexerError("ION backend returned no LION staking rate") from error
+        if not rate.is_finite() or rate <= 0:
+            raise IndexerError("ION backend returned an invalid LION staking rate")
+        return rate
 
     async def balances(self, tokens: Sequence[TokenData], owners: Sequence[str]) -> dict[str, dict[str, int]]:
-        jettons = [token.address for token in tokens if token.type == TokenType.JETTON]
-        collections = [token.address for token in tokens if token.type == TokenType.NFT]
-        found: Counter[tuple[str, str]] = Counter()
-        # A wallet shared by several bot users must not land in two batches and count twice
-        for batch in batched(dict.fromkeys(owners), OWNERS_PER_REQUEST):
-            if jettons:
-                found += jetton_balances(await self._jetton_wallets(jettons, list(batch)))
-            if collections:
-                found += count_items(await self._nft_items(collections, list(batch)))
-
         result: dict[str, dict[str, int]] = {token.address: {} for token in tokens}
-        token_by_raw = {raw_address(token.address): token.address for token in tokens}
-        for (token, owner), amount in found.items():
-            if token in token_by_raw:
-                result[token_by_raw[token]][owner] = amount
+        unique_owners = list(dict.fromkeys(raw_address(owner) for owner in owners))
+        native = next((token for token in tokens if token.type == TokenType.NATIVE), None)
+        jettons = [token for token in tokens if token.type == TokenType.JETTON]
+        masters = list(
+            dict.fromkeys([*(raw_address(token.address) for token in jettons), *([self.lion_jetton] if native else [])])
+        )
+        all_jetton_balances: Counter[tuple[str, str]] = Counter()
+
+        for batch in batched(unique_owners, OWNERS_PER_REQUEST):
+            owner_batch = list(batch)
+            if native:
+                result[native.address].update(await self._native_balances(owner_batch))
+            if masters:
+                all_jetton_balances += await self._jetton_balances(masters, owner_batch)
+
+        if native:
+            lion_balances = {owner: all_jetton_balances[(self.lion_jetton, owner)] for owner in unique_owners}
+            if any(lion_balances.values()):
+                rate = await self._lion_rate()
+                for owner in unique_owners:
+                    result[native.address][owner] = ion_equivalent(
+                        result[native.address][owner], lion_balances[owner], NATIVE_DECIMALS, rate
+                    )
+
+        for token in jettons:
+            master = raw_address(token.address)
+            result[token.address] = {
+                owner: all_jetton_balances[(master, owner)]
+                for owner in unique_owners
+                if all_jetton_balances[(master, owner)]
+            }
         return result
 
-    # Anyone on chain, not only the bot users: an empty answer here is an indexer gap
     async def has_holders(self, token: TokenData) -> bool:
-        if token.type == TokenType.JETTON:
-            wallets = await self._call(
-                partial(
-                    self.client.v3.jettons.get_jetton_wallets,
-                    jetton_address=[token.address],
-                    exclude_zero_balance=True,
-                    limit=1,
-                )
-            )
-            return bool(wallets.jetton_wallets)
-        items = await self._call(
-            partial(self.client.v3.nfts.get_nft_items, collection_address=[token.address], limit=1)
+        if token.type == TokenType.NATIVE:
+            return True
+        data = await self._indexer(
+            "/jetton/wallets",
+            {
+                "jetton_address": token.address,
+                "exclude_zero_balance": "true",
+                "limit": 1,
+            },
         )
-        return bool(items.nft_items)
-
-    # Offset pages are not a snapshot: a row moved between two reads comes twice, so rows are kept by address
-    async def _jetton_wallets(self, jettons: list[str], owners: list[str]) -> list[JettonWallet]:
-        wallets: dict[str, JettonWallet] = {}
-        offset = 0
-        while True:
-            response = await self._call(
-                partial(
-                    self.client.v3.jettons.get_jetton_wallets,
-                    owner_address=owners,
-                    jetton_address=jettons,
-                    exclude_zero_balance=True,
-                    limit=PAGE,
-                    offset=offset,
-                )
-            )
-            page = response.jetton_wallets or []
-            wallets |= {wallet.address or f"row {offset + n}": wallet for n, wallet in enumerate(page)}
-            offset += len(page)
-            if len(page) < PAGE:
-                return list(wallets.values())
-
-    async def _nft_items(self, collections: list[str], owners: list[str]) -> list[NFTItem]:
-        items: dict[str, NFTItem] = {}
-        offset = 0
-        while True:
-            # include_on_sale counts an item on sale for its owner, not for the sale contract
-            response = await self._call(
-                partial(
-                    self.client.v3.nfts.get_nft_items,
-                    owner_address=owners,
-                    collection_address=collections,
-                    include_on_sale=True,
-                    limit=PAGE,
-                    offset=offset,
-                )
-            )
-            page = response.nft_items or []
-            items |= {item.address or f"row {offset + n}": item for n, item in enumerate(page)}
-            offset += len(page)
-            if len(page) < PAGE:
-                return list(items.values())
+        wallets = data.get("jetton_wallets")
+        if not isinstance(wallets, list):
+            raise IndexerError("ION indexer returned no jetton wallet list")
+        return bool(wallets)
 
     async def public_key(self, address: Address) -> PublicKey | None:
-        request = V2RunGetMethodRequest(
-            address=address.to_str(is_user_friendly=False), method="get_public_key", stack=[]
+        data = await self._request(
+            "POST",
+            f"{self.url}/http/v2/jsonRPC",
+            json={
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "runGetMethod",
+                "params": {"address": address.to_str(is_user_friendly=False), "method": "get_public_key", "stack": []},
+            },
         )
-        result = await self._call(partial(self.client.v3.api_v2.run_get_method, request))
-        # An undeployed wallet answers with a non-zero exit code
-        if result.exit_code != 0 or not result.stack:
+        result = data.get("result") or {}
+        if result.get("exit_code") != 0 or not result.get("stack"):
             return None
-        return PublicKey(int(str(result.stack[0].value), 16).to_bytes(32, "big"))
+        value = result["stack"][0][1]
+        return PublicKey(int(value, 0).to_bytes(32, "big"))

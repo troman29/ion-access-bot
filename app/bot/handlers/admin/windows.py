@@ -5,7 +5,7 @@ from app.bot import keyboards
 from app.bot.keyboards import AdminCallback, ChatCallback, PageCallback, TokenCallback
 from app.bot.manager import Manager, SendMode
 from app.bot.states import AdminState
-from app.bot.utils import date_string, paginate, token_amount, tonviewer_link
+from app.bot.utils import date_string, explorer_link, paginate, token_amount
 from app.storage import AdminData, ChatData, TokenData
 
 PAGE_SIZE = 5
@@ -116,7 +116,7 @@ async def token_info(manager: Manager) -> None:
         token_name=html.quote(token.name),
         token_type=token.type,
         token_min_amount=token_amount(token, token.min_amount),
-        token_address=tonviewer_link(token.address),
+        token_address=explorer_link(token.address),
         token_created_at=date_string(token.created_at),
     )
     await manager.send_message(text, reply_markup=keyboards.token_info(manager.text_button))
@@ -145,7 +145,7 @@ async def token_send_amount(manager: Manager, note: str | None = None) -> None:
         await token_send_address(manager)
         return
     text = manager.text_message.get("token_send_amount").format(
-        token_name=tonviewer_link(token["address"], token["name"]),
+        token_name=explorer_link(token["address"], token["name"]),
         token_type=token["type"],
     )
     await manager.send_message(with_note(text, note), reply_markup=keyboards.back(manager.text_button))
@@ -157,7 +157,7 @@ async def token_confirm_add(manager: Manager) -> None:
     if token is None:
         await token_send_address(manager)
         return
-    item = tonviewer_link(token["address"], token["name"])
+    item = explorer_link(token["address"], token["name"])
     text = manager.text_message.get("confirm_item_add").format(item=item)
     await manager.send_message(text, reply_markup=keyboards.back_confirm(manager.text_button))
     await manager.state.set_state(AdminState.TOKEN_CONFIRM_ADD)

@@ -10,13 +10,12 @@ from aiogram.types import BufferedInputFile, ChatMember, TelegramObject, User
 from aiogram.utils.markdown import hbold, hcode, hlink
 from cachetools import TTLCache
 
-from app.config import DEX_URLS, Config
+from app.config import Config
 from app.indexer import DEFAULT_DECIMALS
 from app.storage import Storage, TokenData, TokenType
 from app.texts import TextMessage
 
-GETGEMS_COLLECTION_URL = "https://getgems.io/collection/"
-TONVIEWER_URL = "https://tonviewer.com/"
+EXPLORER_URL = "https://explorer.ice.io/address/"
 MAX_AMOUNT = 2**120
 # The join-request link, approving and declining requests need the first; removing a member needs the second
 BOT_RIGHTS = ("can_invite_users", "can_restrict_members")
@@ -64,18 +63,13 @@ async def is_admin(_: TelegramObject, event_from_user: User, storage: Storage, c
     return event_from_user.id in await storage.admin_ids(config.bot.ADMIN_ID)
 
 
-def tonviewer_link(address: str, name: str | None = None) -> str:
-    return hlink(name or f"{address[:4]}...{address[-4:]}", TONVIEWER_URL + address)
-
-
-def buy_url(token: TokenData, dex_name: str) -> str:
-    base_url = GETGEMS_COLLECTION_URL if token.type == TokenType.NFT else DEX_URLS[dex_name]
-    return base_url + token.address
+def explorer_link(address: str, name: str | None = None) -> str:
+    if address == "ION":
+        return hcode(name or address)
+    return hlink(name or f"{address[:4]}...{address[-4:]}", EXPLORER_URL + address)
 
 
 def token_amount(token: TokenData, amount: int) -> str:
-    if token.type == TokenType.NFT:
-        return str(amount)
     decimals = DEFAULT_DECIMALS if token.decimals is None else token.decimals
     # Integer math: Decimal's 28-digit context fails on a huge balance; the fraction is cut to 9 digits
     whole, fraction = divmod(amount, 10**decimals)
@@ -95,7 +89,7 @@ def paginate[T](items: list[T], page: int, page_size: int) -> tuple[list[T], int
 def parse_min_amount(text: str, token_type: str, decimals: int | None) -> int | None:
     try:
         value = Decimal(text.strip().replace(",", "."))
-        if token_type == TokenType.JETTON:
+        if token_type in {TokenType.NATIVE, TokenType.JETTON}:
             value = value.scaleb(decimals or 0)
     except ArithmeticError:
         return None

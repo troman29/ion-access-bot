@@ -1,9 +1,10 @@
+from aiogram import html
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.markdown import hbold, hcode, hlink
 
 from app.bot import keyboards
 from app.bot.manager import Manager
-from app.bot.utils import buy_url, token_amount
+from app.bot.utils import token_amount
 from app.config import Config
 from app.indexer import raw_address
 from app.storage import TokenData, UserData
@@ -28,8 +29,7 @@ async def balance_text(
         owner = raw_address(user.wallet_address)
         for token in await manager.storage.tokens():
             if amount := await manager.storage.balance(token.address, owner):
-                name = hlink(token.name, buy_url(token, manager.config.DEX_NAME))
-                balances.append(f"{name} - {hcode(token_amount(token, amount))}")
+                balances.append(f"{html.quote(token.name)} - {hcode(token_amount(token, amount))}")
 
     texts = group_text(manager.config)
     if not balances:

@@ -1,9 +1,10 @@
-from aiogram.utils.markdown import hcode, hlink
+from aiogram import html
+from aiogram.utils.markdown import hcode
 
 from app.bot import keyboards
 from app.bot.manager import Manager, SendMode
 from app.bot.states import UserState
-from app.bot.utils import buy_url, token_amount, tonviewer_link
+from app.bot.utils import explorer_link, token_amount
 from app.gate import Access
 
 
@@ -25,14 +26,12 @@ async def main_menu(manager: Manager, send_mode: SendMode = SendMode.EDIT) -> No
         return
     chats = await manager.storage.chats()
     tokens = await manager.storage.tokens()
-    dex_name = manager.config.DEX_NAME
 
     text = manager.text_message.get("main_menu").format(
-        wallet=tonviewer_link(manager.user.wallet_address),
+        wallet=explorer_link(manager.user.wallet_address),
         chats="\n".join(f"• {hcode(chat.name)}" for chat in chats),
         tokens="\n".join(
-            f"• {hlink(token.name, buy_url(token, dex_name))} - {hcode(token_amount(token, token.min_amount))}"
-            for token in tokens
+            f"• {html.quote(token.name)} - {hcode(token_amount(token, token.min_amount))}" for token in tokens
         ),
     )
     await manager.send_message(text, reply_markup=keyboards.main_menu(manager.text_button), send_mode=send_mode)
@@ -47,7 +46,7 @@ async def show_access(manager: Manager, access: Access, send_mode: SendMode = Se
     elif access == Access.DENIED:
         tokens = await manager.storage.tokens()
         text = manager.text_message.get("deny_access" if tokens else "deny_access_no_tokens")
-        reply_markup = keyboards.deny_access(manager.text_button, tokens, manager.config.DEX_NAME)
+        reply_markup = keyboards.deny_access(manager.text_button)
     else:
         text = manager.text_message.get("check_failed")
         reply_markup = keyboards.main(manager.text_button)

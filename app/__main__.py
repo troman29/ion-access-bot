@@ -29,7 +29,7 @@ from .storage import Storage
 
 logger = logging.getLogger(__name__)
 
-WALLETS_FALLBACK = Path(__file__).parents[1] / "data" / "wallets.json"
+WALLETS_FALLBACK = Path(__file__).parents[1] / "assets" / "wallets.json"
 
 
 async def on_startup(
@@ -75,13 +75,19 @@ async def main() -> None:
 
     bot = Bot(token=config.bot.TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     bot.session.middleware(RetryMiddleware())
-    indexer = Indexer(config.indexer.KEY, config.indexer.RPS, config.IS_TESTNET)
+    indexer = Indexer(
+        config.indexer.URL,
+        config.indexer.STAKING_API_URL,
+        config.indexer.LION_JETTON,
+        config.indexer.KEY,
+    )
 
     dp = Dispatcher(storage=RedisStorage(redis), config=config, indexer=indexer)
     # Dispatcher(storage=...) is the FSM storage, so the bot data goes in separately
     dp["storage"] = Storage(redis)
 
     loader = AppWalletsLoader(
+        source=config.WALLETS_LIST_URL,
         include_wallets=config.WALLETS,
         order_wallets=config.WALLETS,
         fallback_path=WALLETS_FALLBACK,
@@ -91,7 +97,7 @@ async def main() -> None:
     if unknown := set(config.WALLETS) - {wallet.app_name for wallet in wallets}:
         logger.warning("WALLETS not in the catalog or without a universal link: %s", ", ".join(sorted(unknown)))
     if not wallets:
-        raise ValueError("WALLETS has no wallet from https://config.ton.org/wallets-v2.json")
+        raise ValueError("WALLETS has no wallet with an ION Gateway universal link")
 
     try:
         manifest = await asyncio.to_thread(load_json, config.MANIFEST_URL)
@@ -111,7 +117,7 @@ async def main() -> None:
         manifest_url=config.MANIFEST_URL,
         view=WalletView(dp["storage"]),
         wallets=wallets,
-        network=NetworkGlobalID.TESTNET if config.IS_TESTNET else NetworkGlobalID.MAINNET,
+        network=NetworkGlobalID.MAINNET,
         ton_proof=ton_proof,
     )
 

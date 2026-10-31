@@ -50,7 +50,7 @@ deny_access = """
 
 В вашем кошельке не хватает токенов из списка.
 
-Их можно приобрести по кнопкам ниже, а затем проверить доступ ещё раз."""
+Пополните баланс нужных активов и проверьте доступ ещё раз."""
 
 deny_access_no_tokens = """
 🔒 <b>Доступ пока закрыт</b>
@@ -133,7 +133,7 @@ connect_wallet_rejected = """
 connect_wallet_wrong_network = """
 🌐 <b>Другая сеть</b>
 
-Кошелёк подключён к другой сети TON.
+Кошелёк подключён к другой сети. Выберите основную сеть ION.
 
 Переключите сеть в кошельке и подключите заново."""
 
@@ -187,15 +187,15 @@ token_info = """
 token_send_address = """
 💎 <b>Новый токен</b>
 
-Отправьте адрес коллекции NFT или мастер-контракта жетона."""
+Отправьте ION для суммарного баланса ION и застейканного LION либо адрес мастер-контракта токена в сети ION."""
 
-token_send_address_error = "<i>Это не адрес TON.</i>"
+token_send_address_error = "<i>Отправьте ION или корректный адрес токена в сети ION.</i>"
 
 token_send_address_error_unavailable = "<i>Не удалось проверить адрес, попробуйте ещё раз.</i>"
 
 token_send_address_error_already_exist = "<i>Этот токен уже добавлен.</i>"
 
-token_send_address_error_not_supported = "<i>Это не коллекция NFT и не жетон.</i>"
+token_send_address_error_not_supported = "<i>Это не мастер-контракт токена в сети ION.</i>"
 
 token_send_amount = """
 💎 <b>{token_name}</b>
@@ -286,29 +286,29 @@ check_failed = """
 Попробуйте ещё раз через пару минут."""
 
 [pictures]
-select_language = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/gate.png"
-change_language = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/gate.png"
-main_menu = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/gate.png"
-allow_access = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/granted.png"
-welcome_to_chat = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/granted.png"
-welcome_to_chat_no_tokens = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/granted.png"
-deny_access = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/denied.png"
-user_kicked = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/denied.png"
-deny_access_no_tokens = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/denied.png"
-check_failed = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/wait.png"
-chat_rights_missing = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/error.png"
-chat_rights_restored = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/granted.png"
-chat_bot_removed = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/error.png"
-chat_check_failed = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/wait.png"
-top_select_token = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/top.png"
-top_holders = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/top.png"
-balance_command = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/balance.png"
-balance_command_no_tokens = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/balance.png"
-admin_menu = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/admin.png"
-admins_menu = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/admin.png"
-admin_info = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/admin.png"
-chats_menu = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/chats.png"
-chat_info = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/chats.png"
-tokens_menu = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/tokens.png"
-token_info = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/tokens.png"
-top_holders_empty = "https://raw.githubusercontent.com/nessshon/tontokengate-bot/main/assets/pictures/top.png"
+select_language = "https://ionwallet.io/ion-wallet-arcs-288.png"
+change_language = "https://ionwallet.io/ion-wallet-arcs-288.png"
+main_menu = "https://ionwallet.io/ion-wallet-arcs-288.png"
+allow_access = "https://ionwallet.io/ion-wallet-arcs-288.png"
+welcome_to_chat = "https://ionwallet.io/ion-wallet-arcs-288.png"
+welcome_to_chat_no_tokens = "https://ionwallet.io/ion-wallet-arcs-288.png"
+deny_access = "https://ionwallet.io/ion-wallet-arcs-288.png"
+user_kicked = "https://ionwallet.io/ion-wallet-arcs-288.png"
+deny_access_no_tokens = "https://ionwallet.io/ion-wallet-arcs-288.png"
+check_failed = "https://ionwallet.io/ion-wallet-arcs-288.png"
+chat_rights_missing = "https://ionwallet.io/ion-wallet-arcs-288.png"
+chat_rights_restored = "https://ionwallet.io/ion-wallet-arcs-288.png"
+chat_bot_removed = "https://ionwallet.io/ion-wallet-arcs-288.png"
+chat_check_failed = "https://ionwallet.io/ion-wallet-arcs-288.png"
+top_select_token = "https://ionwallet.io/ion-wallet-arcs-288.png"
+top_holders = "https://ionwallet.io/ion-wallet-arcs-288.png"
+balance_command = "https://ionwallet.io/ion-wallet-arcs-288.png"
+balance_command_no_tokens = "https://ionwallet.io/ion-wallet-arcs-288.png"
+admin_menu = "https://ionwallet.io/ion-wallet-arcs-288.png"
+admins_menu = "https://ionwallet.io/ion-wallet-arcs-288.png"
+admin_info = "https://ionwallet.io/ion-wallet-arcs-288.png"
+chats_menu = "https://ionwallet.io/ion-wallet-arcs-288.png"
+chat_info = "https://ionwallet.io/ion-wallet-arcs-288.png"
+tokens_menu = "https://ionwallet.io/ion-wallet-arcs-288.png"
+token_info = "https://ionwallet.io/ion-wallet-arcs-288.png"
+top_holders_empty = "https://ionwallet.io/ion-wallet-arcs-288.png"
