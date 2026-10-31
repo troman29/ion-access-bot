@@ -1,4 +1,6 @@
-# ION Token Gate
+# ION Access Bot
+
+![ION Access Bot](assets/banner.png)
 
 Telegram bot for private groups and channels. A user connects ION Wallet through ION Gateway and proves control of the wallet. The bot approves a join request only when the wallet meets every configured balance rule. It checks members again every `CHECK_INTERVAL` minutes and removes those who fall below a rule.
 
